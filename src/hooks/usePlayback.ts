@@ -12,37 +12,50 @@ export function usePlayback() {
     isFullscreen: false,
     viewMode: 'grid',
     isTransitioning: false,
+    isDualCamera: false,
+    secondaryClipIndex: 1, // default second cam = clip 2
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const secondaryVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const currentClip: VideoClip = CLIPS[state.currentClipIndex] ?? CLIPS[0];
+  const secondaryClip: VideoClip = CLIPS[state.secondaryClipIndex] ?? CLIPS[1] ?? CLIPS[0];
+
+  // ─── Sync secondary video playback speed ───────────────────
+  const syncSecondary = useCallback((action: 'play' | 'pause' | 'rate', rate?: number) => {
+    const sec = secondaryVideoRef.current;
+    if (!sec) return;
+    if (action === 'play') sec.play().catch(() => {});
+    if (action === 'pause') sec.pause();
+    if (action === 'rate' && rate !== undefined) sec.playbackRate = rate;
+  }, []);
 
   const play = useCallback(() => {
-    if (videoRef.current) {
-      videoRef.current.play();
-    }
+    videoRef.current?.play();
+    syncSecondary('play');
     setState((s) => ({ ...s, isPlaying: true }));
-  }, []);
+  }, [syncSecondary]);
 
   const pause = useCallback(() => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
+    videoRef.current?.pause();
+    syncSecondary('pause');
     setState((s) => ({ ...s, isPlaying: false }));
-  }, []);
+  }, [syncSecondary]);
 
   const togglePlay = useCallback(() => {
     setState((s) => {
       if (s.isPlaying) {
         videoRef.current?.pause();
+        syncSecondary('pause');
         return { ...s, isPlaying: false };
       } else {
         videoRef.current?.play();
+        syncSecondary('play');
         return { ...s, isPlaying: true };
       }
     });
-  }, []);
+  }, [syncSecondary]);
 
   const selectClip = useCallback((index: number) => {
     if (index < 0 || index >= CLIPS.length) return;
@@ -52,21 +65,24 @@ export function usePlayback() {
       currentTime: 0,
       isTransitioning: true,
     }));
-    // Clear transitioning flag after animation
     setTimeout(() => {
       setState((s) => ({ ...s, isTransitioning: false }));
     }, 600);
   }, []);
 
+  const selectSecondaryClip = useCallback((index: number) => {
+    if (index < 0 || index >= CLIPS.length) return;
+    setState((s) => ({ ...s, secondaryClipIndex: index }));
+  }, []);
+
+  const toggleDualCamera = useCallback(() => {
+    setState((s) => ({ ...s, isDualCamera: !s.isDualCamera }));
+  }, []);
+
   const nextClip = useCallback(() => {
     setState((s) => {
       const nextIndex = s.currentClipIndex < CLIPS.length - 1 ? s.currentClipIndex + 1 : 0;
-      return {
-        ...s,
-        currentClipIndex: nextIndex,
-        currentTime: 0,
-        isTransitioning: true,
-      };
+      return { ...s, currentClipIndex: nextIndex, currentTime: 0, isTransitioning: true };
     });
     setTimeout(() => {
       setState((s) => ({ ...s, isTransitioning: false }));
@@ -76,12 +92,7 @@ export function usePlayback() {
   const prevClip = useCallback(() => {
     setState((s) => {
       const prevIndex = s.currentClipIndex > 0 ? s.currentClipIndex - 1 : CLIPS.length - 1;
-      return {
-        ...s,
-        currentClipIndex: prevIndex,
-        currentTime: 0,
-        isTransitioning: true,
-      };
+      return { ...s, currentClipIndex: prevIndex, currentTime: 0, isTransitioning: true };
     });
     setTimeout(() => {
       setState((s) => ({ ...s, isTransitioning: false }));
@@ -90,10 +101,9 @@ export function usePlayback() {
 
   const setPlaybackSpeed = useCallback((speed: number) => {
     setState((s) => ({ ...s, playbackSpeed: speed }));
-    if (videoRef.current) {
-      videoRef.current.playbackRate = speed;
-    }
-  }, []);
+    if (videoRef.current) videoRef.current.playbackRate = speed;
+    syncSecondary('rate', speed);
+  }, [syncSecondary]);
 
   const toggleAutoPlay = useCallback(() => {
     setState((s) => ({ ...s, isAutoPlay: !s.isAutoPlay }));
@@ -104,8 +114,13 @@ export function usePlayback() {
   }, []);
 
   const seekTo = useCallback((time: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
+    if (videoRef.current) videoRef.current.currentTime = time;
+    // Keep secondary in sync when seeking primary
+    if (secondaryVideoRef.current) {
+      const secDur = secondaryVideoRef.current.duration;
+      if (secDur && isFinite(secDur)) {
+        secondaryVideoRef.current.currentTime = Math.min(time, secDur - 0.1);
+      }
     }
     setState((s) => ({ ...s, currentTime: time }));
   }, []);
@@ -114,14 +129,12 @@ export function usePlayback() {
     setState((s) => ({ ...s, currentTime: time }));
   }, []);
 
-  // NOTE: Auto-play between clips is handled via the video element's onEnded event
-  // in App.tsx, which is more reliable than a polling interval.
+  // NOTE: Auto-play between clips is handled via the video element's onEnded event in App.tsx.
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -143,25 +156,28 @@ export function usePlayback() {
           e.preventDefault();
           setPlaybackSpeed(Math.max(state.playbackSpeed - 0.5, 0.25));
           break;
-        case 'f':
-        case 'F':
-          setState((s) => ({ ...s, isFullscreen: !s.isFullscreen }));
+        case 'd':
+        case 'D':
+          toggleDualCamera();
           break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, nextClip, prevClip, setPlaybackSpeed, state.playbackSpeed]);
+  }, [togglePlay, nextClip, prevClip, setPlaybackSpeed, toggleDualCamera, state.playbackSpeed]);
 
   return {
     state,
     currentClip,
+    secondaryClip,
     videoRef,
+    secondaryVideoRef,
     play,
     pause,
     togglePlay,
     selectClip,
+    selectSecondaryClip,
+    toggleDualCamera,
     nextClip,
     prevClip,
     setPlaybackSpeed,

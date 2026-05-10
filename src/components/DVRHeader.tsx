@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List, Columns2 } from 'lucide-react';
 
 interface DVRHeaderProps {
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
   isLive?: boolean;
+  isDualCamera: boolean;
+  onToggleDualCamera: () => void;
 }
 
-export default function DVRHeader({ viewMode, onViewModeChange, isLive = false }: DVRHeaderProps) {
+export default function DVRHeader({ viewMode, onViewModeChange, isLive = false, isDualCamera, onToggleDualCamera }: DVRHeaderProps) {
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
@@ -101,6 +103,28 @@ export default function DVRHeader({ viewMode, onViewModeChange, isLive = false }
 
       {/* View toggles */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {/* Dual Camera toggle */}
+        <button
+          onClick={onToggleDualCamera}
+          title="Dual Camera (D)"
+          style={{
+            width: 36,
+            height: 36,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 8,
+            border: isDualCamera ? '1px solid #30B0D0' : '1px solid #1A2A3A',
+            cursor: 'pointer',
+            background: isDualCamera ? 'rgba(48,176,208,0.15)' : 'transparent',
+            color: isDualCamera ? '#30B0D0' : '#8B9EB7',
+            transition: 'all 200ms',
+            marginRight: 8,
+          }}
+        >
+          <Columns2 size={18} />
+        </button>
+
         <button
           onClick={() => onViewModeChange('grid')}
           style={{

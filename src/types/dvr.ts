@@ -24,6 +24,8 @@ export interface PlaybackState {
   isFullscreen: boolean;
   viewMode: 'grid' | 'list';
   isTransitioning: boolean;
+  isDualCamera: boolean;
+  secondaryClipIndex: number;
 }
 
 export interface TimelineSegment {

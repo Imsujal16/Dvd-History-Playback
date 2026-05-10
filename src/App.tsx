@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import FluidBackground from './components/FluidBackground';
 import DVRHeader from './components/DVRHeader';
 import VideoPlayer from './components/VideoPlayer';
+import DualCameraPlayer from './components/DualCameraPlayer';
 import ClipInfoPanel from './components/ClipInfoPanel';
 import Timeline from './components/Timeline';
 import ClipLibrary from './components/ClipLibrary';
@@ -13,9 +14,13 @@ function App() {
   const {
     state,
     currentClip,
+    secondaryClip,
     videoRef,
+    secondaryVideoRef,
     togglePlay,
     selectClip,
+    selectSecondaryClip,
+    toggleDualCamera,
     nextClip,
     prevClip,
     setPlaybackSpeed,
@@ -37,7 +42,6 @@ function App() {
       const nextIndex =
         state.currentClipIndex < CLIPS.length - 1 ? state.currentClipIndex + 1 : 0;
       selectClip(nextIndex);
-      // Wait for the new clip's src to load, then auto-play
       setTimeout(() => {
         const video = videoRef.current;
         if (video) {
@@ -106,6 +110,8 @@ function App() {
           viewMode={state.viewMode}
           onViewModeChange={setViewMode}
           isLive={state.currentClipIndex === CLIPS.length - 1}
+          isDualCamera={state.isDualCamera}
+          onToggleDualCamera={toggleDualCamera}
         />
 
         {/* Main Player Area */}
@@ -113,29 +119,75 @@ function App() {
           style={{
             padding: '80px 24px 24px',
             display: 'grid',
-            gridTemplateColumns: '1fr 320px',
+            gridTemplateColumns: state.isDualCamera ? '1fr' : '1fr 320px',
             gap: 24,
             maxWidth: 1600,
             margin: '0 auto',
+            transition: 'grid-template-columns 400ms ease',
           }}
         >
-          {/* Video Player */}
-          <VideoPlayer
-            clip={currentClip}
-            isPlaying={state.isPlaying}
-            playbackSpeed={state.playbackSpeed}
-            isTransitioning={state.isTransitioning}
-            currentTime={state.currentTime}
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={handleVideoEnded}
-            onTogglePlay={togglePlay}
-            onPrev={prevClip}
-            onNext={nextClip}
-            videoRef={videoRef}
-          />
+          {state.isDualCamera ? (
+            /* ── Dual Camera Mode ── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Dual camera mode banner */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 16px',
+                  background: 'rgba(48,176,208,0.08)',
+                  border: '1px solid rgba(48,176,208,0.2)',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: '#30B0D0',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#30B0D0', display: 'inline-block' }} />
+                DUAL CAMERA MODE — Both feeds are synchronized. Press <strong style={{ margin: '0 4px' }}>D</strong> to toggle.
+              </div>
 
-          {/* Clip Info Panel */}
-          <ClipInfoPanel clip={currentClip} />
+              <DualCameraPlayer
+                primaryClip={currentClip}
+                secondaryClip={secondaryClip}
+                isPlaying={state.isPlaying}
+                playbackSpeed={state.playbackSpeed}
+                isTransitioning={state.isTransitioning}
+                currentTime={state.currentTime}
+                primaryClipIndex={state.currentClipIndex}
+                secondaryClipIndex={state.secondaryClipIndex}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleVideoEnded}
+                onTogglePlay={togglePlay}
+                onPrev={prevClip}
+                onNext={nextClip}
+                onSelectPrimary={selectClip}
+                onSelectSecondary={selectSecondaryClip}
+                primaryVideoRef={videoRef}
+                secondaryVideoRef={secondaryVideoRef}
+              />
+            </div>
+          ) : (
+            /* ── Single Camera Mode ── */
+            <>
+              <VideoPlayer
+                clip={currentClip}
+                isPlaying={state.isPlaying}
+                playbackSpeed={state.playbackSpeed}
+                isTransitioning={state.isTransitioning}
+                currentTime={state.currentTime}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleVideoEnded}
+                onTogglePlay={togglePlay}
+                onPrev={prevClip}
+                onNext={nextClip}
+                videoRef={videoRef}
+              />
+              <ClipInfoPanel clip={currentClip} />
+            </>
+          )}
         </div>
 
         {/* Timeline */}
@@ -185,34 +237,17 @@ function App() {
           -moz-osx-font-smoothing: grayscale;
         }
         @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         select option {
           background: #0A1628;
           color: #8B9EB7;
         }
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #1A2A3A;
-          border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #2A3A4A;
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1A2A3A; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2A3A4A; }
       `}</style>
     </div>
   );
